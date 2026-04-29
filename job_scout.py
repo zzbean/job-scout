@@ -92,28 +92,29 @@ def strip_html(text):
 # ── Scrapers ──────────────────────────────────────────────────────────────────
 
 def scrape_rss(url, source, bucket):
-    """Generic RSS parser — works for Science Careers and Nature Careers."""
+    """RSS parser using regex extraction — tolerates malformed namespaces."""
     jobs = []
     content = fetch(url)
     if not content:
         return jobs
-    # Strip XML namespace prefixes so findall works uniformly
-    content = re.sub(r'\sxmlns(?::\w+)?="[^"]+"', '', content)
-    try:
-        root = ET.fromstring(content)
-    except ET.ParseError as e:
-        print(f"  ⚠  RSS parse error ({source}): {e}")
+
+    def first(pattern, text, default=""):
+        m = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+        return strip_html(m.group(1)) if m else default
+
+    items = re.findall(r"<item[^>]*>(.*?)</item>", content, re.DOTALL)
+    if not items:
+        print(f"  ⚠  No <item> elements found in feed ({source})")
         return jobs
-    for item in root.findall(".//item"):
-        title = strip_html(item.findtext("title", ""))
-        link  = item.findtext("link", "") or item.findtext("guid", "")
-        desc  = strip_html(item.findtext("description", ""))
-        # Try common org fields
-        org   = strip_html(
-            item.findtext("author", "") or
-            item.findtext("creator", "") or
-            item.findtext("company", "") or ""
-        )
+
+    for item_text in items:
+        title = first(r"<title[^>]*>\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</title>", item_text)
+        link  = first(r"<link[^>]*>\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</link>", item_text)
+        if not link:
+            link = first(r"<guid[^>]*>(.*?)</guid>", item_text)
+        desc  = first(r"<description[^>]*>\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</description>", item_text)
+        org   = (first(r"<(?:\w+:)?author[^>]*>(.*?)</(?:\w+:)?author>", item_text) or
+                 first(r"<(?:\w+:)?creator[^>]*>(.*?)</(?:\w+:)?creator>", item_text))
         combined = f"{title} {desc}"
         if not is_relevant(combined):
             continue
@@ -198,9 +199,14 @@ def scrape_themuse():
             title = job.get("name", "")
             org   = job.get("company", {}).get("name", "")
             link  = job.get("refs", {}).get("landing_page", "")
-            desc  = strip_html(" ".join(
-                c.get("body", "") for c in job.get("contents", [])
-            ))
+            contents = job.get("contents", [])
+            if isinstance(contents, str):
+                desc = strip_html(contents)
+            else:
+                desc = strip_html(" ".join(
+                    c if isinstance(c, str) else c.get("body", "")
+                    for c in contents
+                ))
             locs  = ", ".join(
                 l.get("name", "") for l in job.get("locations", [])
             ) or "See listing"
@@ -348,12 +354,9 @@ def main():
         source="Science Careers", bucket="academia"
     )
 
-    # Nature Careers RSS — verified URL: https://www.nature.com/naturecareers/jobsrss/
-    print("→ Nature Careers RSS …")
-    all_jobs += scrape_rss(
-        "https://www.nature.com/naturecareers/jobsrss/",
-        source="Nature Careers", bucket="academia"
-    )
+    # Nature Careers RSS (403 from GH Actions — skipping; Science Careers covers this bucket)
+    # print("→ Nature Careers RSS …")
+    # all_jobs += scrape_rss("https://www.nature.com/naturecareers/jobsrss/", ...)
 
     print("→ HigherEdJobs …")
     all_jobs += scrape_higheredjobs()
