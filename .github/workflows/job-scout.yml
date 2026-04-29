@@ -1,0 +1,25 @@
+name: Job Scout — Sabina Kanton
+
+on:
+  schedule:
+    - cron: '0 15 * * *'   # 8 am PDT (UTC-7). Change to '0 16 * * *' Nov–Mar for PST.
+  workflow_dispatch:        # Allows manual "Run workflow" button in GitHub UI
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run job scout
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python job_scout.py
