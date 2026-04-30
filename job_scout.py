@@ -5,14 +5,17 @@ All sources verified working before inclusion.
 """
 
 import os, sys, json, datetime, time, re, urllib.request, urllib.parse
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import xml.etree.ElementTree as ET
 from html import unescape
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-RESEND_API_KEY = os.environ["RESEND_API_KEY"].strip()
-TO_EMAIL       = "bianzhengzhen@gmail.com"
-FROM_EMAIL     = "Job Scout <onboarding@resend.dev>"
+GMAIL_FROM         = os.environ["GMAIL_FROM"].strip()
+GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"].strip()
+TO_EMAIL           = "bianzhengzhen@gmail.com"
 HEADERS        = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -317,25 +320,20 @@ def build_email(academia, industry, today):
 
 
 def send_email(html, today):
-    payload = json.dumps({
-        "from":    FROM_EMAIL,
-        "to":      [TO_EMAIL],
-        "subject": f"🔬 Job Leads for Sabina Kanton — {today}",
-        "html":    html,
-    }).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.resend.com/emails", data=payload,
-        headers={
-            "Authorization": "Bearer " + RESEND_API_KEY,
-            "Content-Type":  "application/json",
-        })
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Job Leads for Sabina Kanton — {today}"
+    msg["From"]    = GMAIL_FROM
+    msg["To"]      = TO_EMAIL
+    msg.attach(MIMEText(html, "html", "utf-8"))
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            result = json.loads(r.read())
-            print(f"✅  Email sent — id: {result.get('id')}")
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="ignore")
-        print(f"❌  Resend error {e.code}: {body}")
+        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.login(GMAIL_FROM, GMAIL_APP_PASSWORD)
+            smtp.send_message(msg)
+        print("✅  Email sent via Gmail SMTP")
+    except Exception as e:
+        print(f"❌  Gmail SMTP error: {e}")
         sys.exit(1)
 
 # ── Main ──────────────────────────────────────────────────────────────────────
