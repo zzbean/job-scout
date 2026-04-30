@@ -319,12 +319,16 @@ def build_email(academia, industry, today):
 
 
 def send_email(html, today):
+    # Convert all non-ASCII characters to HTML entities (e.g. \xa0 → &#160;)
+    # so the message body is pure ASCII and smtplib never chokes on encoding.
+    html_safe = html.encode("ascii", "xmlcharrefreplace").decode("ascii")
+
     msg = EmailMessage()
-    msg["Subject"] = f"Job Leads for Sabina Kanton - {today}"   # ASCII-safe subject
+    msg["Subject"] = f"Job Leads for Sabina Kanton - {today}"
     msg["From"]    = GMAIL_FROM
     msg["To"]      = TO_EMAIL
-    msg.set_content("This email requires an HTML-capable viewer.")
-    msg.add_alternative(html, subtype="html")
+    msg.set_content("This email requires an HTML viewer.")
+    msg.add_alternative(html_safe, subtype="html")
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
             smtp.ehlo()
