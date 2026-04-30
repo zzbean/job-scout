@@ -6,7 +6,6 @@ All sources verified working before inclusion.
 
 import os, sys, json, datetime, time, re, urllib.request, urllib.parse
 import smtplib
-from email.message import EmailMessage
 import xml.etree.ElementTree as ET
 from html import unescape
 
@@ -319,22 +318,40 @@ def build_email(academia, industry, today):
 
 
 def send_email(html, today):
-    # Convert all non-ASCII characters to HTML entities (e.g. \xa0 → &#160;)
-    # so the message body is pure ASCII and smtplib never chokes on encoding.
+    # Encode everything to ASCII — non-ASCII chars become HTML entities (&#160; etc.)
     html_safe = html.encode("ascii", "xmlcharrefreplace").decode("ascii")
+    subject   = f"Job Leads for Sabina Kanton - {today}"
 
-    msg = EmailMessage()
-    msg["Subject"] = f"Job Leads for Sabina Kanton - {today}"
-    msg["From"]    = GMAIL_FROM
-    msg["To"]      = TO_EMAIL
-    msg.set_content("This email requires an HTML viewer.")
-    msg.add_alternative(html_safe, subtype="html")
+    # Build raw RFC 2822 message manually — no email library encoding surprises
+    boundary  = "==jobscout_boundary=="
+    raw = "\r\n".join([
+        f"From: {GMAIL_FROM}",
+        f"To: {TO_EMAIL}",
+        f"Subject: {subject}",
+        "MIME-Version: 1.0",
+        f'Content-Type: multipart/alternative; boundary="{boundary}"',
+        "",
+        f"--{boundary}",
+        "Content-Type: text/plain; charset=us-ascii",
+        "Content-Transfer-Encoding: 7bit",
+        "",
+        "This email requires an HTML viewer.",
+        "",
+        f"--{boundary}",
+        "Content-Type: text/html; charset=us-ascii",
+        "Content-Transfer-Encoding: 7bit",
+        "",
+        html_safe,
+        "",
+        f"--{boundary}--",
+    ])
+
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
             smtp.ehlo()
             smtp.starttls()
             smtp.login(GMAIL_FROM, GMAIL_APP_PASSWORD)
-            smtp.send_message(msg)
+            smtp.sendmail(GMAIL_FROM, [TO_EMAIL], raw.encode("ascii"))
         print("✅  Email sent via Gmail SMTP")
     except Exception as e:
         print(f"❌  Gmail SMTP error: {e}")
