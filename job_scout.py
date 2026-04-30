@@ -6,8 +6,7 @@ All sources verified working before inclusion.
 
 import os, sys, json, datetime, time, re, urllib.request, urllib.parse
 import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from email.message import EmailMessage
 import xml.etree.ElementTree as ET
 from html import unescape
 
@@ -308,7 +307,7 @@ def build_email(academia, industry, today):
         '<h1 style="color:#fff;margin:0;font-size:18px;font-weight:700;">'
         '🔬 Job Leads for Sabina Kanton</h1>'
         f'<p style="color:#94a3b8;margin:6px 0 0;font-size:13px;">'
-        f'{today} &nbsp;·&nbsp; {total} opportunities found</p>'
+        f'{today} | {total} opportunities found</p>'
         '</div>'
         '<div style="padding:8px 28px 28px;">'
         + section("🎓", "Academia", academia, "#1d4ed8")
@@ -320,11 +319,12 @@ def build_email(academia, industry, today):
 
 
 def send_email(html, today):
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Job Leads for Sabina Kanton — {today}"
+    msg = EmailMessage()
+    msg["Subject"] = f"Job Leads for Sabina Kanton - {today}"   # ASCII-safe subject
     msg["From"]    = GMAIL_FROM
     msg["To"]      = TO_EMAIL
-    msg.attach(MIMEText(html, "html", "utf-8"))
+    msg.set_content("This email requires an HTML-capable viewer.")
+    msg.add_alternative(html, subtype="html")
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
             smtp.ehlo()
