@@ -173,6 +173,27 @@ def remoteok():
                                  posted=fmt_date(j.get("date",""))))
     return jobs
 
+def ashby(slugs, bucket="industry"):
+    """Fetch jobs from Ashby-hosted boards (used by insitro, Relation Therapeutics, etc.)."""
+    jobs = []
+    for slug in slugs:
+        data = fetch(f"https://api.ashbyhq.com/posting-api/job-board/{slug}")
+        if not data: continue
+        try: items = json.loads(data).get("jobPostings", [])
+        except: continue
+        for j in items:
+            title  = j.get("title","")
+            org    = slug.replace("-"," ").title()
+            loc    = j.get("locationName","") or j.get("location","")
+            url    = j.get("jobUrl","")
+            posted = fmt_date(j.get("publishedAt",""))
+            desc   = clean(j.get("descriptionPlain","") or j.get("description",""))
+            s = score_job(title, desc, slug)
+            if s >= 5:
+                jobs.append(dict(title=title, org=org, location=loc, url=url,
+                                 score=s, source="Ashby", bucket=bucket, posted=posted))
+    return jobs
+
 def lever(slugs, bucket="industry"):
     """Fetch jobs from Lever-hosted boards (many biotech startups use Lever)."""
     jobs = []
@@ -335,25 +356,20 @@ def main():
             if s >= 3:
                 jobs.append(dict(title=m.group(2).strip(), org="University", location="", url=f"https://www.higheredjobs.com{m.group(1)}", score=s, source="HigherEdJobs", bucket="academia", posted=""))
 
-    print("BioSpace RSS...")
-    jobs += rss_jobs("https://www.biospace.com/rss/jobs/", "BioSpace", "industry")
-
     print("Greenhouse (institutes)...")
     jobs += greenhouse(["arcinstitute","chanzuckerberginitiative","altoslabs","newlimit"], "academia")
 
     print("Greenhouse (biotech startups)...")
     jobs += greenhouse([
         "10xgenomics","calicolabs","abcellera","dynotherapeutics","cellarity",
-        "recursionpharma","insitro","scalebiosciences","pathos","encodedbio",
-        "neatseq","kyverna","imago","cajal","biodock",
+        "recursionpharmaceuticals","OctantBio",
     ])
 
     print("Lever (biotech startups)...")
-    jobs += lever([
-        "cellino","readcoor","serenbio","vividbiosci","terray",
-        "octant","relation-therapeutics","helixnanosystems","vial",
-        "dyno","sherlock-biosciences","patch-biosciences",
-    ])
+    jobs += lever(["ScaleBio"])
+
+    print("Ashby (biotech startups)...")
+    jobs += ashby(["insitro","relationrx"])
 
     print("The Muse...")
     jobs += themuse()
