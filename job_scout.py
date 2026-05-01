@@ -190,7 +190,7 @@ def linkedin():
         params = urllib.parse.urlencode({
             "keywords": q,
             "location": "United States",
-            "f_TPR": "r604800",   # posted in last 7 days
+            "f_TPR": "r2592000",  # posted in last 30 days
             "start": 0,
         })
         url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?{params}"
