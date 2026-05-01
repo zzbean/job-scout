@@ -1,9 +1,7 @@
 name: Job Scout — Dr. K
 
 on:
-  schedule:
-    - cron: '0 15 * * *'   # 8 am PDT (UTC-7). Change to '0 16 * * *' Nov–Mar for PST.
-  workflow_dispatch:        # Allows manual "Run workflow" button in GitHub UI
+  workflow_dispatch:        # Triggered by cron-job.org at 8am PT via GitHub API
 
 jobs:
   scout:
