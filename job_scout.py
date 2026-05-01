@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Job Scout for Sabina Kanton
+Job Scout for Dr. K
 Scrapes job boards, scores listings, writes ranked HTML to email_body.html
 Email is sent by the GitHub Actions workflow (dawidd6/action-send-mail).
 """
