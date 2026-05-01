@@ -20,7 +20,16 @@ jobs:
           python-version: '3.11'
 
       - name: Run job scout
-        env:
-          GMAIL_FROM: ${{ secrets.GMAIL_FROM }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: python job_scout.py
+
+      - name: Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.GMAIL_FROM }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "Job Leads for Sabina Kanton — ${{ github.run_id }}"
+          to: bianzhengzhen@gmail.com
+          from: ${{ secrets.GMAIL_FROM }}
+          html_body: file://email_body.html
