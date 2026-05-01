@@ -187,51 +187,54 @@ def linkedin():
     ]
     jobs, seen_ids = [], set()
     for q in queries:
-        params = urllib.parse.urlencode({
-            "keywords": q,
-            "location": "United States",
-            "f_TPR": "r2592000",  # posted in last 30 days
-            "start": 0,
-        })
-        url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?{params}"
-        try:
-            req = urllib.request.Request(url, headers=LINKEDIN_HEADERS)
-            with urllib.request.urlopen(req, timeout=20) as r:
-                html = r.read().decode("utf-8", errors="ignore")
-        except Exception as e:
-            print(f"  LinkedIn skip ({q}) — {e}")
-            continue
+        for start in range(0, 75, 25):   # 3 pages × 25 = up to 75 results per query
+            params = urllib.parse.urlencode({
+                "keywords": q,
+                "location": "United States",
+                "f_TPR": "r2592000",  # posted in last 30 days
+                "start": start,
+            })
+            url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?{params}"
+            try:
+                req = urllib.request.Request(url, headers=LINKEDIN_HEADERS)
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    html = r.read().decode("utf-8", errors="ignore")
+            except Exception as e:
+                print(f"  LinkedIn skip ({q} start={start}) — {e}")
+                break
+            if not html.strip():
+                break
 
-        # Each job card is a <li> block; pull fields with regex
-        for card in re.findall(r"<li[^>]*>(.*?)</li>", html, re.DOTALL):
-            # Job ID / URL
-            id_m = re.search(r'data-entity-urn="[^"]*:(\d+)"', card)
-            url_m = re.search(r'href="(https://www\.linkedin\.com/jobs/view/[^"?]+)', card)
-            job_url = url_m.group(1) if url_m else ""
-            job_id  = id_m.group(1) if id_m else job_url
-            if not job_id or job_id in seen_ids: continue
-            seen_ids.add(job_id)
+            # Each job card is a <li> block; pull fields with regex
+            for card in re.findall(r"<li[^>]*>(.*?)</li>", html, re.DOTALL):
+                # Job ID / URL
+                id_m = re.search(r'data-entity-urn="[^"]*:(\d+)"', card)
+                url_m = re.search(r'href="(https://www\.linkedin\.com/jobs/view/[^"?]+)', card)
+                job_url = url_m.group(1) if url_m else ""
+                job_id  = id_m.group(1) if id_m else job_url
+                if not job_id or job_id in seen_ids: continue
+                seen_ids.add(job_id)
 
-            title_m = re.search(r'class="[^"]*base-search-card__title[^"]*"[^>]*>\s*([^<]+)', card)
-            org_m   = re.search(r'class="[^"]*base-search-card__subtitle[^"]*"[^>]*>\s*(?:<[^>]+>)*\s*([^<]+)', card)
-            loc_m   = re.search(r'class="[^"]*job-search-card__location[^"]*"[^>]*>\s*([^<]+)', card)
-            date_m  = re.search(r'<time[^>]*datetime="([^"]+)"', card)
+                title_m = re.search(r'class="[^"]*base-search-card__title[^"]*"[^>]*>\s*([^<]+)', card)
+                org_m   = re.search(r'class="[^"]*base-search-card__subtitle[^"]*"[^>]*>\s*(?:<[^>]+>)*\s*([^<]+)', card)
+                loc_m   = re.search(r'class="[^"]*job-search-card__location[^"]*"[^>]*>\s*([^<]+)', card)
+                date_m  = re.search(r'<time[^>]*datetime="([^"]+)"', card)
 
-            title    = title_m.group(1).strip() if title_m else ""
-            org      = org_m.group(1).strip()   if org_m   else ""
-            location = loc_m.group(1).strip()   if loc_m   else ""
-            posted   = fmt_date(date_m.group(1)) if date_m else ""
+                title    = title_m.group(1).strip() if title_m else ""
+                org      = org_m.group(1).strip()   if org_m   else ""
+                location = loc_m.group(1).strip()   if loc_m   else ""
+                posted   = fmt_date(date_m.group(1)) if date_m else ""
 
-            if not title: continue
-            if not is_relevant(f"{title} {org}"): continue
-            s = score_job(title, "", org)
-            if s >= 4:
-                # Determine bucket: academia keywords → academia, else industry
-                bucket = "academia" if any(k in f"{title} {org}".lower()
-                    for k in ["universit","college","institute","professor","postdoc","faculty","hospital","research center"]) else "industry"
-                jobs.append(dict(title=title, org=org, location=location,
-                                 url=job_url, score=s, source="LinkedIn", bucket=bucket, posted=posted))
-        time.sleep(2)   # be polite between queries
+                if not title: continue
+                if not is_relevant(f"{title} {org}"): continue
+                s = score_job(title, "", org)
+                if s >= 4:
+                    # Determine bucket: academia keywords → academia, else industry
+                    bucket = "academia" if any(k in f"{title} {org}".lower()
+                        for k in ["universit","college","institute","professor","postdoc","faculty","hospital","research center"]) else "industry"
+                    jobs.append(dict(title=title, org=org, location=location,
+                                     url=job_url, score=s, source="LinkedIn", bucket=bucket, posted=posted))
+            time.sleep(2)   # be polite between pages
     return jobs
 
 # ── HTML ──────────────────────────────────────────────────────────────────────
@@ -335,8 +338,8 @@ def main():
     unique.sort(key=lambda x: x["score"], reverse=True)
     academia = [j for j in unique if j["bucket"]=="academia"]
     industry = [j for j in unique if j["bucket"]=="industry"]
-    a_out = ([j for j in academia if j["score"]>=6] or academia[:5])[:10]
-    i_out = ([j for j in industry if j["score"]>=6] or industry[:5])[:10]
+    a_out = ([j for j in academia if j["score"]>=6] or academia[:5])[:15]
+    i_out = ([j for j in industry if j["score"]>=6] or industry[:5])[:15]
 
     print(f"{len(a_out)} academia, {len(i_out)} industry leads")
 
