@@ -34,6 +34,6 @@ jobs:
           username: ${{ secrets.GMAIL_FROM }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "Job Leads for Dr. K — ${{ steps.date.outputs.today }}"
-          to: bianzhengzhen@gmail.com, zzbean@protonmail.com
+          to: ${{ secrets.RECIPIENTS }}
           from: ${{ secrets.GMAIL_FROM }}
           html_body: file://email_body.html
