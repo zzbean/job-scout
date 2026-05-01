@@ -185,7 +185,7 @@ def build_html(academia, industry, today):
         '<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif">'
         '<div style="max-width:680px;margin:20px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">'
         '<div style="background:#0f172a;padding:22px 26px">'
-        '<h1 style="color:#fff;margin:0;font-size:17px;font-weight:700">Job Leads for Sabina Kanton</h1>'
+        '<h1 style="color:#fff;margin:0;font-size:17px;font-weight:700">Job Leads for Dr K</h1>'
         f'<p style="color:#94a3b8;margin:5px 0 0;font-size:13px">{today} - {total} opportunities found</p>'
         '</div>'
         f'<div style="padding:6px 26px 26px">'
