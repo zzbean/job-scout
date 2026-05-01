@@ -173,6 +173,29 @@ def remoteok():
                                  posted=fmt_date(j.get("date",""))))
     return jobs
 
+def lever(slugs, bucket="industry"):
+    """Fetch jobs from Lever-hosted boards (many biotech startups use Lever)."""
+    jobs = []
+    for slug in slugs:
+        data = fetch(f"https://api.lever.co/v0/postings/{slug}?mode=json")
+        if not data: continue
+        try: items = json.loads(data)
+        except: continue
+        if not isinstance(items, list): continue
+        for j in items:
+            title = j.get("text","")
+            org   = j.get("team","") or slug.replace("-"," ").title()
+            desc  = clean(j.get("descriptionPlain","") or j.get("description",""))
+            loc   = j.get("categories",{}).get("location","") if isinstance(j.get("categories"),dict) else ""
+            url   = j.get("hostedUrl","")
+            posted = fmt_date(str(j.get("createdAt","")//1000) if j.get("createdAt") else "")
+            s = score_job(title, desc, slug)
+            if s >= 5:
+                jobs.append(dict(title=title, org=slug.replace("-"," ").title(),
+                                 location=loc, url=url, score=s,
+                                 source="Lever", bucket=bucket, posted=posted))
+    return jobs
+
 def linkedin():
     """Scrape LinkedIn public guest job search (no login required)."""
     LINKEDIN_HEADERS = {
@@ -312,12 +335,25 @@ def main():
             if s >= 3:
                 jobs.append(dict(title=m.group(2).strip(), org="University", location="", url=f"https://www.higheredjobs.com{m.group(1)}", score=s, source="HigherEdJobs", bucket="academia", posted=""))
 
-    print("Greenhouse (institutes)...")
-    for j in greenhouse(["arcinstitute","chanzuckerberginitiative","altoslabs","newlimit"], "academia"):
-        jobs.append(j)
+    print("BioSpace RSS...")
+    jobs += rss_jobs("https://www.biospace.com/rss/jobs/", "BioSpace", "industry")
 
-    print("Greenhouse (biotech)...")
-    jobs += greenhouse(["10xgenomics","calicolabs","abcellera","dynotherapeutics","cellarity"])
+    print("Greenhouse (institutes)...")
+    jobs += greenhouse(["arcinstitute","chanzuckerberginitiative","altoslabs","newlimit"], "academia")
+
+    print("Greenhouse (biotech startups)...")
+    jobs += greenhouse([
+        "10xgenomics","calicolabs","abcellera","dynotherapeutics","cellarity",
+        "recursionpharma","insitro","scalebiosciences","pathos","encodedbio",
+        "neatseq","kyverna","imago","cajal","biodock",
+    ])
+
+    print("Lever (biotech startups)...")
+    jobs += lever([
+        "cellino","readcoor","serenbio","vividbiosci","terray",
+        "octant","relation-therapeutics","helixnanosystems","vial",
+        "dyno","sherlock-biosciences","patch-biosciences",
+    ])
 
     print("The Muse...")
     jobs += themuse()
