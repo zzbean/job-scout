@@ -72,6 +72,30 @@ def clean(text):
     text = re.sub(r"\s+", " ", text).strip()
     return text[:500]
 
+def fmt_date(raw):
+    """Parse various date formats into a short 'Mon DD' string, or '' if unparseable."""
+    if not raw: return ""
+    raw = str(raw).strip()
+    fmts = [
+        "%a, %d %b %Y %H:%M:%S %z",   # RSS: Mon, 28 Apr 2025 00:00:00 +0000
+        "%a, %d %b %Y %H:%M:%S %Z",   # RSS: Mon, 28 Apr 2025 00:00:00 GMT
+        "%Y-%m-%dT%H:%M:%S.%fZ",      # ISO: 2025-04-28T12:00:00.000Z
+        "%Y-%m-%dT%H:%M:%SZ",         # ISO: 2025-04-28T12:00:00Z
+        "%Y-%m-%dT%H:%M:%S%z",        # ISO with offset
+        "%Y-%m-%d",                    # plain date
+    ]
+    for fmt in fmts:
+        try:
+            return datetime.datetime.strptime(raw, fmt).strftime("%b %d")
+        except ValueError:
+            pass
+    # Unix epoch integer
+    try:
+        return datetime.datetime.utcfromtimestamp(int(raw)).strftime("%b %d")
+    except (ValueError, OSError):
+        pass
+    return ""
+
 # ── Sources ───────────────────────────────────────────────────────────────────
 
 def rss_jobs(url, source, bucket):
@@ -82,10 +106,11 @@ def rss_jobs(url, source, bucket):
             m = re.search(rf"<{tag}[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{tag}>", item, re.DOTALL|re.IGNORECASE)
             return clean(m.group(1)) if m else ""
         title, link, desc = g("title"), g("link") or g("guid"), g("description")
+        posted = fmt_date(g("pubDate"))
         if not is_relevant(f"{title} {desc}"): continue
         s = score_job(title, desc)
         if s > 0:
-            jobs.append(dict(title=title, org="", location="", url=link, score=s, source=source, bucket=bucket))
+            jobs.append(dict(title=title, org="", location="", url=link, score=s, source=source, bucket=bucket, posted=posted))
     return jobs
 
 def greenhouse(slugs, bucket="industry"):
@@ -104,7 +129,8 @@ def greenhouse(slugs, bucket="industry"):
                     org=slug.replace("-"," ").title(),
                     location=j.get("location",{}).get("name",""),
                     url=j.get("absolute_url",""),
-                    score=s, source="Greenhouse", bucket=bucket
+                    score=s, source="Greenhouse", bucket=bucket,
+                    posted=fmt_date(j.get("updated_at",""))
                 ))
     return jobs
 
@@ -125,7 +151,8 @@ def themuse():
             if not is_relevant(f"{title} {desc}"): continue
             s = score_job(title, desc, org)
             if s >= 5:
-                jobs.append(dict(title=title, org=org, location=locs, url=link, score=s, source="The Muse", bucket="industry"))
+                jobs.append(dict(title=title, org=org, location=locs, url=link, score=s, source="The Muse", bucket="industry",
+                                 posted=fmt_date(j.get("publication_date",""))))
     return jobs
 
 def remoteok():
@@ -142,7 +169,8 @@ def remoteok():
             if not is_relevant(f"{title} {desc}"): continue
             s = score_job(title, desc, org)
             if s >= 5:
-                jobs.append(dict(title=title, org=org, location="Remote", url=j.get("url",""), score=s, source="RemoteOK", bucket="industry"))
+                jobs.append(dict(title=title, org=org, location="Remote", url=j.get("url",""), score=s, source="RemoteOK", bucket="industry",
+                                 posted=fmt_date(j.get("date",""))))
     return jobs
 
 def linkedin():
@@ -187,10 +215,12 @@ def linkedin():
             title_m = re.search(r'class="[^"]*base-search-card__title[^"]*"[^>]*>\s*([^<]+)', card)
             org_m   = re.search(r'class="[^"]*base-search-card__subtitle[^"]*"[^>]*>\s*(?:<[^>]+>)*\s*([^<]+)', card)
             loc_m   = re.search(r'class="[^"]*job-search-card__location[^"]*"[^>]*>\s*([^<]+)', card)
+            date_m  = re.search(r'<time[^>]*datetime="([^"]+)"', card)
 
             title    = title_m.group(1).strip() if title_m else ""
             org      = org_m.group(1).strip()   if org_m   else ""
             location = loc_m.group(1).strip()   if loc_m   else ""
+            posted   = fmt_date(date_m.group(1)) if date_m else ""
 
             if not title: continue
             if not is_relevant(f"{title} {org}"): continue
@@ -200,7 +230,7 @@ def linkedin():
                 bucket = "academia" if any(k in f"{title} {org}".lower()
                     for k in ["universit","college","institute","professor","postdoc","faculty","hospital","research center"]) else "industry"
                 jobs.append(dict(title=title, org=org, location=location,
-                                 url=job_url, score=s, source="LinkedIn", bucket=bucket))
+                                 url=job_url, score=s, source="LinkedIn", bucket=bucket, posted=posted))
         time.sleep(2)   # be polite between queries
     return jobs
 
@@ -218,11 +248,14 @@ def build_html(academia, industry, today):
             return '<tr><td colspan="4" style="padding:14px;color:#94a3b8;text-align:center">No matches above threshold today.</td></tr>'
         rows = ""
         for i,j in enumerate(jobs,1):
+            subtitle = j.get("org","")
+            if subtitle and j.get("location"): subtitle += f'&nbsp;&middot;&nbsp;{j["location"]}'
+            if j.get("posted"): subtitle += f'{"&nbsp;&middot;&nbsp;" if subtitle else ""}Posted {j["posted"]}'
             rows += (
                 f'<tr style="border-bottom:1px solid #f1f5f9">'
                 f'<td style="padding:9px 6px;color:#94a3b8;font-size:12px">{i}</td>'
                 f'<td style="padding:9px 6px"><a href="{j["url"]}" style="color:#1d4ed8;font-weight:600;text-decoration:none">{j["title"]}</a>'
-                + (f'<br><span style="color:#64748b;font-size:12px">{j["org"]}{"&nbsp;&middot;&nbsp;"+j["location"] if j["location"] else ""}</span>' if j["org"] else "")
+                + (f'<br><span style="color:#64748b;font-size:12px">{subtitle}</span>' if subtitle else "")
                 + f'</td><td style="padding:9px 6px;text-align:center">{badge(j["score"])}</td>'
                 f'<td style="padding:9px 6px;color:#94a3b8;font-size:11px">{j["source"]}</td></tr>'
             )
@@ -274,7 +307,7 @@ def main():
         for m in re.finditer(r'href="((?:/faculty/|/research/)details\.cfm\?JobCode=\d+)"[^>]*>\s*([^<]{10,})', content):
             s = score_job(m.group(2).strip(), "")
             if s >= 3:
-                jobs.append(dict(title=m.group(2).strip(), org="University", location="", url=f"https://www.higheredjobs.com{m.group(1)}", score=s, source="HigherEdJobs", bucket="academia"))
+                jobs.append(dict(title=m.group(2).strip(), org="University", location="", url=f"https://www.higheredjobs.com{m.group(1)}", score=s, source="HigherEdJobs", bucket="academia", posted=""))
 
     print("Greenhouse (institutes)...")
     for j in greenhouse(["arcinstitute","chanzuckerberginitiative","altoslabs","newlimit"], "academia"):
