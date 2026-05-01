@@ -144,6 +144,65 @@ def remoteok():
                 jobs.append(dict(title=title, org=org, location="Remote", url=j.get("url",""), score=s, source="RemoteOK", bucket="industry"))
     return jobs
 
+def linkedin():
+    """Scrape LinkedIn public guest job search (no login required)."""
+    LINKEDIN_HEADERS = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    queries = [
+        "single cell genomics",
+        "brain organoid stem cell",
+        "bioinformatics scientist neuroscience",
+        "ipsc developmental biology",
+    ]
+    jobs, seen_ids = [], set()
+    for q in queries:
+        params = urllib.parse.urlencode({
+            "keywords": q,
+            "location": "United States",
+            "f_TPR": "r604800",   # posted in last 7 days
+            "start": 0,
+        })
+        url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?{params}"
+        try:
+            req = urllib.request.Request(url, headers=LINKEDIN_HEADERS)
+            with urllib.request.urlopen(req, timeout=20) as r:
+                html = r.read().decode("utf-8", errors="ignore")
+        except Exception as e:
+            print(f"  LinkedIn skip ({q}) — {e}")
+            continue
+
+        # Each job card is a <li> block; pull fields with regex
+        for card in re.findall(r"<li[^>]*>(.*?)</li>", html, re.DOTALL):
+            # Job ID / URL
+            id_m = re.search(r'data-entity-urn="[^"]*:(\d+)"', card)
+            url_m = re.search(r'href="(https://www\.linkedin\.com/jobs/view/[^"?]+)', card)
+            job_url = url_m.group(1) if url_m else ""
+            job_id  = id_m.group(1) if id_m else job_url
+            if not job_id or job_id in seen_ids: continue
+            seen_ids.add(job_id)
+
+            title_m = re.search(r'class="[^"]*base-search-card__title[^"]*"[^>]*>\s*([^<]+)', card)
+            org_m   = re.search(r'class="[^"]*base-search-card__subtitle[^"]*"[^>]*>\s*(?:<[^>]+>)*\s*([^<]+)', card)
+            loc_m   = re.search(r'class="[^"]*job-search-card__location[^"]*"[^>]*>\s*([^<]+)', card)
+
+            title    = title_m.group(1).strip() if title_m else ""
+            org      = org_m.group(1).strip()   if org_m   else ""
+            location = loc_m.group(1).strip()   if loc_m   else ""
+
+            if not title: continue
+            if not is_relevant(f"{title} {org}"): continue
+            s = score_job(title, "", org)
+            if s >= 4:
+                # Determine bucket: academia keywords → academia, else industry
+                bucket = "academia" if any(k in f"{title} {org}".lower()
+                    for k in ["universit","college","institute","professor","postdoc","faculty","hospital","research center"]) else "industry"
+                jobs.append(dict(title=title, org=org, location=location,
+                                 url=job_url, score=s, source="LinkedIn", bucket=bucket))
+        time.sleep(2)   # be polite between queries
+    return jobs
+
 # ── HTML ──────────────────────────────────────────────────────────────────────
 
 def build_html(academia, industry, today):
@@ -228,6 +287,9 @@ def main():
 
     print("RemoteOK...")
     jobs += remoteok()
+
+    print("LinkedIn...")
+    jobs += linkedin()
 
     # Deduplicate
     seen, unique = set(), []
