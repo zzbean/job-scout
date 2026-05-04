@@ -124,7 +124,7 @@ def greenhouse(slugs, bucket="industry"):
         for j in items:
             title = j.get("title","")
             s = score_job(title, clean(j.get("content","")), slug)
-            if s >= 5:
+            if s >= 3:
                 jobs.append(dict(
                     title=title,
                     org=slug.replace("-"," ").title(),
@@ -151,7 +151,7 @@ def themuse():
             locs = ", ".join(l.get("name","") for l in j.get("locations",[]) if isinstance(l,dict)) or "See listing"
             if not is_relevant(f"{title} {desc}"): continue
             s = score_job(title, desc, org)
-            if s >= 5:
+            if s >= 3:
                 jobs.append(dict(title=title, org=org, location=locs, url=link, score=s, source="The Muse", bucket="industry",
                                  posted=fmt_date(j.get("publication_date",""))))
     return jobs
@@ -169,7 +169,7 @@ def remoteok():
             desc  = clean(j.get("description","")) + " " + " ".join(j.get("tags",[]))
             if not is_relevant(f"{title} {desc}"): continue
             s = score_job(title, desc, org)
-            if s >= 5:
+            if s >= 3:
                 jobs.append(dict(title=title, org=org, location="Remote", url=j.get("url",""), score=s, source="RemoteOK", bucket="industry",
                                  posted=fmt_date(j.get("date",""))))
     return jobs
@@ -190,7 +190,7 @@ def ashby(slugs, bucket="industry"):
             posted = fmt_date(j.get("publishedAt",""))
             desc   = clean(j.get("descriptionPlain","") or j.get("description",""))
             s = score_job(title, desc, slug)
-            if s >= 5:
+            if s >= 3:
                 jobs.append(dict(title=title, org=org, location=loc, url=url,
                                  score=s, source="Ashby", bucket=bucket, posted=posted))
     return jobs
@@ -234,7 +234,7 @@ def lever(slugs, bucket="industry"):
             url   = j.get("hostedUrl","")
             posted = fmt_date(str(j.get("createdAt","")//1000) if j.get("createdAt") else "")
             s = score_job(title, desc, slug)
-            if s >= 5:
+            if s >= 3:
                 jobs.append(dict(title=title, org=slug.replace("-"," ").title(),
                                  location=loc, url=url, score=s,
                                  source="Lever", bucket=bucket, posted=posted))
