@@ -401,8 +401,12 @@ def main():
 
     print("AI & Neurotech (featured)...")
     featured_raw = []
-    featured_raw += greenhouse(["anthropic","deepmind"], min_score=0)
-    featured_raw += ashby(["openai","Merge Labs"], min_score=0)
+    # Merge Labs is a pure neurotech company — include all non-filtered roles
+    featured_raw += ashby(["Merge Labs"], min_score=0)
+    # AI companies — only include roles that mention biology or neuroscience
+    ai_jobs = greenhouse(["anthropic","deepmind"], min_score=0)
+    ai_jobs += ashby(["openai"], min_score=0)
+    featured_raw += [j for j in ai_jobs if is_relevant(j["title"])]
 
     print("Lever (biotech startups)...")
     jobs += lever(["ScaleBio"])
