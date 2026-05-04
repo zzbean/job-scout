@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 from html import unescape
 from zoneinfo import ZoneInfo
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
 
@@ -33,6 +33,7 @@ RSS_KEYWORDS = [
     "single cell", "organoid", "stem cell", "ipsc", "genomic",
     "bioinformat", "sequencing", "neuroscience", "developmental",
     "cell biology", "biochemistry", "molecular biology",
+    "biology", "neurobiology", "computational biology",
 ]
 
 def is_relevant(text):
@@ -194,6 +195,28 @@ def ashby(slugs, bucket="industry"):
                                  score=s, source="Ashby", bucket=bucket, posted=posted))
     return jobs
 
+def workable(slugs, bucket="industry"):
+    """Fetch jobs from Workable-hosted boards."""
+    jobs = []
+    for slug in slugs:
+        data = fetch(f"https://apply.workable.com/api/v1/widget/accounts/{slug}/jobs")
+        if not data: continue
+        try: items = json.loads(data).get("jobs", [])
+        except: continue
+        for j in items:
+            title  = j.get("title","")
+            loc    = j.get("location",{})
+            location = f'{loc.get("city","")}, {loc.get("region","")} {loc.get("country","")}'.strip(", ")
+            url    = j.get("url","") or f"https://apply.workable.com/{slug}/j/{j.get('shortcode','')}"
+            posted = fmt_date(j.get("created_at",""))
+            desc   = clean(j.get("description","") or j.get("full_description",""))
+            s = score_job(title, desc, slug)
+            if s >= 4:
+                jobs.append(dict(title=title, org=slug.replace("-"," ").title(),
+                                 location=location, url=url, score=s,
+                                 source="Workable", bucket=bucket, posted=posted))
+    return jobs
+
 def lever(slugs, bucket="industry"):
     """Fetch jobs from Lever-hosted boards (many biotech startups use Lever)."""
     jobs = []
@@ -347,6 +370,12 @@ def main():
     print("Science Careers RSS...")
     jobs += rss_jobs("https://jobs.sciencecareers.org/jobsrss/", "Science Careers", "academia")
 
+    print("Nature Careers RSS...")
+    jobs += rss_jobs("https://www.nature.com/naturejobs/rss/sciencejobs", "Nature Careers", "academia")
+
+    print("BioSpace RSS...")
+    jobs += rss_jobs("https://jobs.biospace.com/jobsrss/?countrycode=US", "BioSpace", "industry")
+
     print("HigherEdJobs...")
     for q in ["single cell genomics stem cell faculty", "neuroscience organoid assistant professor"]:
         url = f"https://www.higheredjobs.com/search/advanced_action.cfm?Keywords={urllib.parse.quote(q)}&PosType=1&InstType=1&Submit=Search+Jobs"
@@ -356,20 +385,25 @@ def main():
             if s >= 3:
                 jobs.append(dict(title=m.group(2).strip(), org="University", location="", url=f"https://www.higheredjobs.com{m.group(1)}", score=s, source="HigherEdJobs", bucket="academia", posted=""))
 
-    print("Greenhouse (institutes)...")
+    print("Greenhouse (institutes + academia)...")
     jobs += greenhouse(["arcinstitute","chanzuckerberginitiative","altoslabs","newlimit"], "academia")
 
-    print("Greenhouse (biotech startups)...")
+    print("Greenhouse (AI + biotech)...")
     jobs += greenhouse([
         "10xgenomics","calicolabs","abcellera","dynotherapeutics","cellarity",
         "recursionpharmaceuticals","OctantBio",
+        "anthropic","deepmind",
+        "cajalneuro",
     ])
+
+    print("Ashby (AI + biotech startups)...")
+    jobs += ashby(["insitro","relationrx","openai","cohere"])
 
     print("Lever (biotech startups)...")
     jobs += lever(["ScaleBio"])
 
-    print("Ashby (biotech startups)...")
-    jobs += ashby(["insitro","relationrx"])
+    print("Workable (biotech startups)...")
+    jobs += workable(["surrozen","encoded"])
 
     print("The Muse...")
     jobs += themuse()
