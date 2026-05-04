@@ -393,7 +393,6 @@ def main():
         "10xgenomics","calicolabs","abcellera","dynotherapeutics","cellarity",
         "recursionpharmaceuticals","OctantBio",
         "anthropic","deepmind",
-        "cajalneuro",
     ])
 
     print("Ashby (AI + biotech startups)...")
@@ -401,9 +400,6 @@ def main():
 
     print("Lever (biotech startups)...")
     jobs += lever(["ScaleBio"])
-
-    print("Workable (biotech startups)...")
-    jobs += workable(["surrozen","encoded"])
 
     print("The Muse...")
     jobs += themuse()
@@ -424,8 +420,8 @@ def main():
     unique.sort(key=lambda x: x["score"], reverse=True)
     academia = [j for j in unique if j["bucket"]=="academia"]
     industry = [j for j in unique if j["bucket"]=="industry"]
-    a_out = ([j for j in academia if j["score"]>=6] or academia[:5])[:15]
-    i_out = ([j for j in industry if j["score"]>=6] or industry[:5])[:15]
+    a_out = [j for j in academia if j["score"]>=3][:15]
+    i_out = [j for j in industry if j["score"]>=3][:15]
 
     print(f"{len(a_out)} academia, {len(i_out)} industry leads")
 
