@@ -178,7 +178,7 @@ def ashby(slugs, bucket="industry"):
     """Fetch jobs from Ashby-hosted boards (used by insitro, Relation Therapeutics, etc.)."""
     jobs = []
     for slug in slugs:
-        data = fetch(f"https://api.ashbyhq.com/posting-api/job-board/{slug}")
+        data = fetch(f"https://api.ashbyhq.com/posting-api/job-board/{urllib.parse.quote(slug)}")
         if not data: continue
         try: items = json.loads(data).get("jobPostings", [])
         except: continue
@@ -397,7 +397,7 @@ def main():
     ])
 
     print("Ashby (AI + biotech startups)...")
-    jobs += ashby(["insitro","relationrx","openai","cohere"])
+    jobs += ashby(["insitro","relationrx","openai","cohere","Merge Labs"])
 
     print("Lever (biotech startups)...")
     jobs += lever(["ScaleBio"])
