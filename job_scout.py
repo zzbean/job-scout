@@ -114,7 +114,7 @@ def rss_jobs(url, source, bucket):
             jobs.append(dict(title=title, org="", location="", url=link, score=s, source=source, bucket=bucket, posted=posted))
     return jobs
 
-def greenhouse(slugs, bucket="industry"):
+def greenhouse(slugs, bucket="industry", min_score=3):
     jobs = []
     for slug in slugs:
         data = fetch(f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true")
@@ -123,8 +123,9 @@ def greenhouse(slugs, bucket="industry"):
         except: continue
         for j in items:
             title = j.get("title","")
-            s = score_job(title, clean(j.get("content","")), slug)
-            if s >= 3:
+            desc  = clean(j.get("content",""))
+            s = score_job(title, desc, slug)
+            if s >= min_score and not any(b in f"{title} {desc}".lower() for b in TITLE_BAD):
                 jobs.append(dict(
                     title=title,
                     org=slug.replace("-"," ").title(),
@@ -174,7 +175,7 @@ def remoteok():
                                  posted=fmt_date(j.get("date",""))))
     return jobs
 
-def ashby(slugs, bucket="industry"):
+def ashby(slugs, bucket="industry", min_score=3):
     """Fetch jobs from Ashby-hosted boards (used by insitro, Relation Therapeutics, etc.)."""
     jobs = []
     for slug in slugs:
@@ -190,7 +191,7 @@ def ashby(slugs, bucket="industry"):
             posted = fmt_date(j.get("publishedAt",""))
             desc   = clean(j.get("descriptionPlain","") or j.get("description",""))
             s = score_job(title, desc, slug)
-            if s >= 3:
+            if s >= min_score and not any(b in f"{title} {desc}".lower() for b in TITLE_BAD):
                 jobs.append(dict(title=title, org=org, location=loc, url=url,
                                  score=s, source="Ashby", bucket=bucket, posted=posted))
     return jobs
@@ -306,8 +307,8 @@ def linkedin():
 
 # ── HTML ──────────────────────────────────────────────────────────────────────
 
-def build_html(academia, industry, today):
-    total = len(academia) + len(industry)
+def build_html(academia, industry, featured, today):
+    total = len(academia) + len(industry) + len(featured)
 
     def badge(s):
         color = "#16a34a" if s>=8 else "#d97706" if s>=6 else "#dc2626"
@@ -354,6 +355,7 @@ def build_html(academia, industry, today):
         f'<div style="padding:6px 26px 26px">'
         + section("🎓", "Academia", academia, "#1d4ed8")
         + section("🏢", "Industry", industry, "#7c3aed")
+        + section("🤖", "AI &amp; Neurotech", featured, "#0891b2")
         + '<p style="color:#cbd5e1;font-size:11px;margin-top:24px;text-align:center">'
         'Scored on: single-cell genomics, organoids, stem cells, brain development, seniority fit'
         '</p></div></div></body></html>'
@@ -388,15 +390,19 @@ def main():
     print("Greenhouse (institutes + academia)...")
     jobs += greenhouse(["arcinstitute","chanzuckerberginitiative","altoslabs","newlimit"], "academia")
 
-    print("Greenhouse (AI + biotech)...")
+    print("Greenhouse (biotech)...")
     jobs += greenhouse([
         "10xgenomics","calicolabs","abcellera","dynotherapeutics","cellarity",
         "recursionpharmaceuticals","OctantBio",
-        "anthropic","deepmind",
     ])
 
-    print("Ashby (AI + biotech startups)...")
-    jobs += ashby(["insitro","relationrx","openai","cohere","Merge Labs"])
+    print("Ashby (biotech startups)...")
+    jobs += ashby(["insitro","relationrx","cohere"])
+
+    print("AI & Neurotech (featured)...")
+    featured_raw = []
+    featured_raw += greenhouse(["anthropic","deepmind"], min_score=0)
+    featured_raw += ashby(["openai","Merge Labs"], min_score=0)
 
     print("Lever (biotech startups)...")
     jobs += lever(["ScaleBio"])
@@ -410,7 +416,7 @@ def main():
     print("LinkedIn...")
     jobs += linkedin()
 
-    # Deduplicate
+    # Deduplicate main jobs
     seen, unique = set(), []
     for j in jobs:
         k = j["url"] or j["title"]
@@ -423,9 +429,16 @@ def main():
     a_out = academia[:15]
     i_out = industry[:15]
 
-    print(f"{len(a_out)} academia, {len(i_out)} industry leads")
+    # Deduplicate and sort featured companies
+    seen_f, featured = set(), []
+    for j in sorted(featured_raw, key=lambda x: x["score"], reverse=True):
+        k = j["url"] or j["title"]
+        if k not in seen_f and k not in seen:
+            seen_f.add(k); featured.append(j)
 
-    html = build_html(a_out, i_out, today)
+    print(f"{len(a_out)} academia, {len(i_out)} industry, {len(featured)} featured leads")
+
+    html = build_html(a_out, i_out, featured, today)
     with open("email_body.html", "w", encoding="utf-8") as f:
         f.write(html)
     print("Wrote email_body.html")
