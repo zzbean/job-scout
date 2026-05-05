@@ -404,12 +404,17 @@ def main():
 
     print("AI & Neurotech (featured)...")
     featured_raw = []
-    # Merge Labs is a pure neurotech company — include all non-filtered roles
-    featured_raw += ashby(["Merge Labs"], min_score=0)
-    # AI companies — only include roles that mention biology or neuroscience
-    ai_jobs = greenhouse(["anthropic","deepmind"], min_score=0)
-    ai_jobs += ashby(["openai"], min_score=0)
-    featured_raw += [j for j in ai_jobs if is_relevant(j["title"])]
+    merge_jobs = ashby(["Merge Labs"], min_score=0)
+    print(f"  Merge Labs raw: {len(merge_jobs)}")
+    featured_raw += merge_jobs
+    ai_gh = greenhouse(["anthropic","deepmind"], min_score=0)
+    print(f"  Anthropic+DeepMind raw: {len(ai_gh)}")
+    ai_ashby = ashby(["openai"], min_score=0)
+    print(f"  OpenAI raw: {len(ai_ashby)}")
+    ai_filtered = [j for j in ai_gh + ai_ashby if is_relevant(j["title"])]
+    print(f"  AI after relevance filter: {len(ai_filtered)}")
+    featured_raw += ai_filtered
+    print(f"  featured_raw total: {len(featured_raw)}")
 
     print("Lever (biotech startups)...")
     jobs += lever(["ScaleBio"])
@@ -440,8 +445,12 @@ def main():
     seen_f, featured = set(), []
     for j in sorted(featured_raw, key=lambda x: x["score"], reverse=True):
         k = j["url"] or j["title"]
-        if k not in seen_f and k not in seen:
+        in_seen = k in seen
+        in_seen_f = k in seen_f
+        if in_seen: print(f"  [dedup] dropped (in main pool): {j['title']}")
+        if not in_seen_f and not in_seen:
             seen_f.add(k); featured.append(j)
+    print(f"  featured after dedup: {len(featured)}")
 
     print(f"{len(a_out)} academia, {len(i_out)} industry, {len(featured)} featured leads")
 
