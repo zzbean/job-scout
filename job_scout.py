@@ -125,7 +125,7 @@ def greenhouse(slugs, bucket="industry", min_score=3):
             title = j.get("title","")
             desc  = clean(j.get("content",""))
             s = score_job(title, desc, slug)
-            if s >= min_score and not any(b in f"{title} {desc}".lower() for b in TITLE_BAD):
+            if s >= min_score:
                 jobs.append(dict(
                     title=title,
                     org=slug.replace("-"," ").title(),
@@ -191,7 +191,7 @@ def ashby(slugs, bucket="industry", min_score=3):
             posted = fmt_date(j.get("publishedAt",""))
             desc   = clean(j.get("descriptionPlain","") or j.get("description",""))
             s = score_job(title, desc, slug)
-            if s >= min_score and not any(b in f"{title} {desc}".lower() for b in TITLE_BAD):
+            if s >= min_score:
                 jobs.append(dict(title=title, org=org, location=loc, url=url,
                                  score=s, source="Ashby", bucket=bucket, posted=posted))
     return jobs
@@ -388,10 +388,10 @@ def main():
                 jobs.append(dict(title=m.group(2).strip(), org="University", location="", url=f"https://www.higheredjobs.com{m.group(1)}", score=s, source="HigherEdJobs", bucket="academia", posted=""))
 
     print("Greenhouse (institutes + academia)...")
-    jobs += greenhouse(["arcinstitute","chanzuckerberginitiative","newlimit"], "academia")
+    jobs += greenhouse(["arcinstitute","chanzuckerberginitiative"], "academia")
 
-    print("Greenhouse (Altos Labs)...")
-    jobs += greenhouse(["altoslabs"], "industry")
+    print("Greenhouse (Altos Labs + NewLimit)...")
+    jobs += greenhouse(["altoslabs","newlimit"], "industry")
 
     print("Greenhouse (biotech)...")
     jobs += greenhouse([
