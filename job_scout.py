@@ -39,6 +39,43 @@ RSS_KEYWORDS = [
 def is_relevant(text):
     return any(k in text.lower() for k in RSS_KEYWORDS)
 
+# Specific biology/neuro keywords unlikely to appear as boilerplate in AI company JDs
+_FEATURED_BIO_KW = [
+    "single cell", "single-cell", "scrna", "rna-seq",
+    "organoid", "stem cell", "ipsc", "pluripotent",
+    "bioinformat", "computational biology",
+    "neuroscience", "neurobiology",
+    "molecular biology", "cell biology",
+    "developmental biology", "genomic",
+]
+# Title keywords that indicate a research/science role
+_RESEARCH_TITLE_KW = [
+    "scientist", "researcher", "research engineer", "research manager",
+    "research lead", "biologist", "bioinformat", "genomic",
+    "neuroscientist", "computational", "postdoc",
+]
+
+def is_featured_bio(title, full_desc):
+    """Return True if this AI-company job is genuinely biology/neuro relevant.
+    Accepts a role if:
+    - The title explicitly mentions bio/neuro (e.g. 'Life Sciences', 'Biological'),
+    - OR the title is a research/science role AND the full description contains
+      specific biology keywords.
+    """
+    title_l = title.lower()
+    combined = f"{title} {full_desc}".lower()
+    # Title directly names a bio/neuro domain
+    if any(k in title_l for k in [
+        "biolog", "neuro", "genomic", "bioinformat",
+        "stem cell", "organoid", "single cell", "life science",
+        "ipsc", "computational bio",
+    ]):
+        return True
+    # Research role whose description actually mentions bio
+    if any(k in title_l for k in _RESEARCH_TITLE_KW):
+        return any(k in combined for k in _FEATURED_BIO_KW)
+    return False
+
 def score_job(title, desc, org=""):
     text    = f"{title} {desc} {org}".lower()
     title_l = title.lower()
@@ -70,8 +107,7 @@ def fetch(url):
 
 def clean(text):
     text = re.sub(r"<[^>]+>", " ", unescape(text or ""))
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:500]
+    return re.sub(r"\s+", " ", text).strip()
 
 def fmt_date(raw):
     """Parse various date formats into a short 'Mon DD' string, or '' if unparseable."""
@@ -133,7 +169,7 @@ def greenhouse(slugs, bucket="industry", min_score=3):
                     url=j.get("absolute_url",""),
                     score=s, source="Greenhouse", bucket=bucket,
                     posted=fmt_date(j.get("updated_at","")),
-                    desc_snippet=desc[:300]
+                    desc_snippet=desc
                 ))
     return jobs
 
@@ -198,7 +234,7 @@ def ashby(slugs, bucket="industry", min_score=3):
             if s >= min_score:
                 jobs.append(dict(title=title, org=org, location=loc, url=url,
                                  score=s, source="Ashby", bucket=bucket, posted=posted,
-                                 desc_snippet=desc[:300]))
+                                 desc_snippet=desc))
     return jobs
 
 def workable(slugs, bucket="industry"):
@@ -413,7 +449,7 @@ def main():
     ai_gh    = greenhouse(["anthropic","deepmind"], min_score=0)
     ai_ashby = ashby(["openai"], min_score=0)
     ai_filtered = [j for j in ai_gh + ai_ashby
-                   if is_relevant(f"{j['title']} {j.get('desc_snippet','')}")]
+                   if is_featured_bio(j["title"], j.get("desc_snippet",""))]
     featured_raw += ai_filtered
 
     print("Lever (biotech startups)...")
