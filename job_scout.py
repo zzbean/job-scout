@@ -42,7 +42,7 @@ def is_relevant(text):
 def score_job(title, desc, org=""):
     text    = f"{title} {desc} {org}".lower()
     title_l = title.lower()
-    if any(b in text for b in TITLE_BAD): return 0.0
+    if any(b in title_l for b in TITLE_BAD): return 0.0
     s = 0.0
     if   any(t in title_l for t in TITLE_BEST): s += 3.0
     elif any(t in title_l for t in TITLE_GOOD): s += 2.4
@@ -388,7 +388,10 @@ def main():
                 jobs.append(dict(title=m.group(2).strip(), org="University", location="", url=f"https://www.higheredjobs.com{m.group(1)}", score=s, source="HigherEdJobs", bucket="academia", posted=""))
 
     print("Greenhouse (institutes + academia)...")
-    jobs += greenhouse(["arcinstitute","chanzuckerberginitiative","altoslabs","newlimit"], "academia")
+    jobs += greenhouse(["arcinstitute","chanzuckerberginitiative","newlimit"], "academia")
+
+    print("Greenhouse (Altos Labs)...")
+    jobs += greenhouse(["altoslabs"], "industry")
 
     print("Greenhouse (biotech)...")
     jobs += greenhouse([
