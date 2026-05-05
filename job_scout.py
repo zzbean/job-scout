@@ -132,7 +132,8 @@ def greenhouse(slugs, bucket="industry", min_score=3):
                     location=j.get("location",{}).get("name",""),
                     url=j.get("absolute_url",""),
                     score=s, source="Greenhouse", bucket=bucket,
-                    posted=fmt_date(j.get("updated_at",""))
+                    posted=fmt_date(j.get("updated_at","")),
+                    desc_snippet=desc[:300]
                 ))
     return jobs
 
@@ -176,24 +177,28 @@ def remoteok():
     return jobs
 
 def ashby(slugs, bucket="industry", min_score=3):
-    """Fetch jobs from Ashby-hosted boards (used by insitro, Relation Therapeutics, etc.)."""
+    """Fetch jobs from Ashby-hosted boards."""
     jobs = []
     for slug in slugs:
         data = fetch(f"https://api.ashbyhq.com/posting-api/job-board/{urllib.parse.quote(slug)}")
         if not data: continue
-        try: items = json.loads(data).get("jobPostings", [])
+        try:
+            parsed = json.loads(data)
+            # Ashby API uses "jobs" or "jobPostings" depending on account
+            items = parsed.get("jobs") or parsed.get("jobPostings") or []
         except: continue
         for j in items:
             title  = j.get("title","")
             org    = slug.replace("-"," ").title()
-            loc    = j.get("locationName","") or j.get("location","")
+            loc    = j.get("locationName","") or (j.get("location") or {}).get("name","") if isinstance(j.get("location"), dict) else j.get("location","")
             url    = j.get("jobUrl","")
             posted = fmt_date(j.get("publishedAt",""))
             desc   = clean(j.get("descriptionPlain","") or j.get("description",""))
             s = score_job(title, desc, slug)
             if s >= min_score:
                 jobs.append(dict(title=title, org=org, location=loc, url=url,
-                                 score=s, source="Ashby", bucket=bucket, posted=posted))
+                                 score=s, source="Ashby", bucket=bucket, posted=posted,
+                                 desc_snippet=desc[:300]))
     return jobs
 
 def workable(slugs, bucket="industry"):
@@ -404,17 +409,12 @@ def main():
 
     print("AI & Neurotech (featured)...")
     featured_raw = []
-    merge_jobs = ashby(["Merge Labs"], min_score=0)
-    print(f"  Merge Labs raw: {len(merge_jobs)}")
-    featured_raw += merge_jobs
-    ai_gh = greenhouse(["anthropic","deepmind"], min_score=0)
-    print(f"  Anthropic+DeepMind raw: {len(ai_gh)}")
+    featured_raw += ashby(["Merge Labs"], min_score=0)
+    ai_gh    = greenhouse(["anthropic","deepmind"], min_score=0)
     ai_ashby = ashby(["openai"], min_score=0)
-    print(f"  OpenAI raw: {len(ai_ashby)}")
-    ai_filtered = [j for j in ai_gh + ai_ashby if is_relevant(j["title"])]
-    print(f"  AI after relevance filter: {len(ai_filtered)}")
+    ai_filtered = [j for j in ai_gh + ai_ashby
+                   if is_relevant(f"{j['title']} {j.get('desc_snippet','')}")]
     featured_raw += ai_filtered
-    print(f"  featured_raw total: {len(featured_raw)}")
 
     print("Lever (biotech startups)...")
     jobs += lever(["ScaleBio"])
@@ -445,12 +445,8 @@ def main():
     seen_f, featured = set(), []
     for j in sorted(featured_raw, key=lambda x: x["score"], reverse=True):
         k = j["url"] or j["title"]
-        in_seen = k in seen
-        in_seen_f = k in seen_f
-        if in_seen: print(f"  [dedup] dropped (in main pool): {j['title']}")
-        if not in_seen_f and not in_seen:
+        if k not in seen_f and k not in seen:
             seen_f.add(k); featured.append(j)
-    print(f"  featured after dedup: {len(featured)}")
 
     print(f"{len(a_out)} academia, {len(i_out)} industry, {len(featured)} featured leads")
 
