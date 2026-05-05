@@ -28,6 +28,7 @@ TITLE_BEST = ["assistant professor", "associate professor", "group leader",
 TITLE_GOOD = ["research scientist", "scientist ii", "scientist iii"]
 TITLE_OK   = ["scientist", "researcher"]
 TITLE_BAD  = ["technician", "lab tech", "undergraduate", "phd student",
+              "postdoc", "post-doc", "postdoctoral", "post-doctoral",
               "vp ", "vice president", "marketing", "administrative", "recruiter"]
 RSS_KEYWORDS = [
     "single cell", "organoid", "stem cell", "ipsc", "genomic",
@@ -52,7 +53,7 @@ _FEATURED_BIO_KW = [
 _RESEARCH_TITLE_KW = [
     "scientist", "researcher", "research engineer", "research manager",
     "research lead", "biologist", "bioinformat", "genomic",
-    "neuroscientist", "computational", "postdoc",
+    "neuroscientist", "computational",
 ]
 
 def is_featured_bio(title, full_desc):
