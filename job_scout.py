@@ -119,6 +119,7 @@ def fmt_date(raw):
         "%a, %d %b %Y %H:%M:%S %z",   # RSS: Mon, 28 Apr 2025 00:00:00 +0000
         "%a, %d %b %Y %H:%M:%S %Z",   # RSS: Mon, 28 Apr 2025 00:00:00 GMT
         "%Y-%m-%dT%H:%M:%S.%fZ",      # ISO: 2025-04-28T12:00:00.000Z
+        "%Y-%m-%dT%H:%M:%S.%f%z",    # ISO: 2025-04-28T12:00:00.000+00:00
         "%Y-%m-%dT%H:%M:%SZ",         # ISO: 2025-04-28T12:00:00Z
         "%Y-%m-%dT%H:%M:%S%z",        # ISO with offset
         "%Y-%m-%d",                    # plain date
