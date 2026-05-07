@@ -419,7 +419,7 @@ def build_html(academia, industry, featured, today):
 
     def section(emoji, label, jobs, color):
         return (
-            f'<h2 style="color:{color};font-size:15px;margin:26px 0 8px">{emoji} {label}</h2>'
+            f'<h2 style="color:{color};font-size:15px;margin:26px 0 8px">{emoji} {label} <span style="color:#94a3b8;font-size:12px;font-weight:400">({len(jobs)})</span></h2>'
             f'<table style="width:100%;border-collapse:collapse">'
             f'<thead><tr style="background:#f8fafc">'
             f'<th style="padding:7px 6px;text-align:left;font-size:11px;color:#94a3b8">#</th>'
