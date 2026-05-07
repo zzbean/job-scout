@@ -11,6 +11,7 @@ from html import unescape
 from zoneinfo import ZoneInfo
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+MAX_JOB_AGE_DAYS = 30   # drop listings older than this
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
 
@@ -136,6 +137,32 @@ def fmt_date(raw):
         pass
     return ""
 
+def is_fresh(raw):
+    """Return True if raw date is within MAX_JOB_AGE_DAYS, or if date is unparseable."""
+    if not raw: return True
+    raw = str(raw).strip()
+    fmts = [
+        "%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %Z",
+        "%Y-%m-%dT%H:%M:%S.%fZ",    "%Y-%m-%dT%H:%M:%S.%f%z",
+        "%Y-%m-%dT%H:%M:%SZ",       "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%d",
+    ]
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for fmt in fmts:
+        try:
+            dt = datetime.datetime.strptime(raw, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+            return (now - dt).days <= MAX_JOB_AGE_DAYS
+        except ValueError:
+            pass
+    try:
+        dt = datetime.datetime.utcfromtimestamp(int(raw)).replace(tzinfo=datetime.timezone.utc)
+        return (now - dt).days <= MAX_JOB_AGE_DAYS
+    except (ValueError, OSError):
+        pass
+    return True   # can't parse → let it through
+
 # ── Sources ───────────────────────────────────────────────────────────────────
 
 def rss_jobs(url, source, bucket):
@@ -146,7 +173,9 @@ def rss_jobs(url, source, bucket):
             m = re.search(rf"<{tag}[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{tag}>", item, re.DOTALL|re.IGNORECASE)
             return clean(m.group(1)) if m else ""
         title, link, desc = g("title"), g("link") or g("guid"), g("description")
-        posted = fmt_date(g("pubDate"))
+        raw_date = g("pubDate")
+        if not is_fresh(raw_date): continue
+        posted = fmt_date(raw_date)
         if not is_relevant(f"{title} {desc}"): continue
         s = score_job(title, desc)
         if s > 0:
@@ -163,6 +192,8 @@ def greenhouse(slugs, bucket="industry", min_score=3):
         for j in items:
             title = j.get("title","")
             desc  = clean(j.get("content",""))
+            raw_date = j.get("updated_at","")
+            if not is_fresh(raw_date): continue
             s = score_job(title, desc, slug)
             if s >= min_score:
                 jobs.append(dict(
@@ -171,7 +202,7 @@ def greenhouse(slugs, bucket="industry", min_score=3):
                     location=j.get("location",{}).get("name",""),
                     url=j.get("absolute_url",""),
                     score=s, source="Greenhouse", bucket=bucket,
-                    posted=fmt_date(j.get("updated_at","")),
+                    posted=fmt_date(raw_date),
                     desc_snippet=desc
                 ))
     return jobs
@@ -191,10 +222,12 @@ def themuse():
             link = j.get("refs",{}).get("landing_page","") if isinstance(j.get("refs"),dict) else ""
             locs = ", ".join(l.get("name","") for l in j.get("locations",[]) if isinstance(l,dict)) or "See listing"
             if not is_relevant(f"{title} {desc}"): continue
+            raw_date = j.get("publication_date","")
+            if not is_fresh(raw_date): continue
             s = score_job(title, desc, org)
             if s >= 3:
                 jobs.append(dict(title=title, org=org, location=locs, url=link, score=s, source="The Muse", bucket="industry",
-                                 posted=fmt_date(j.get("publication_date",""))))
+                                 posted=fmt_date(raw_date)))
     return jobs
 
 def remoteok():
@@ -209,10 +242,12 @@ def remoteok():
             title, org = j.get("position",""), j.get("company","")
             desc  = clean(j.get("description","")) + " " + " ".join(j.get("tags",[]))
             if not is_relevant(f"{title} {desc}"): continue
+            raw_date = j.get("date","")
+            if not is_fresh(raw_date): continue
             s = score_job(title, desc, org)
             if s >= 3:
                 jobs.append(dict(title=title, org=org, location="Remote", url=j.get("url",""), score=s, source="RemoteOK", bucket="industry",
-                                 posted=fmt_date(j.get("date",""))))
+                                 posted=fmt_date(raw_date)))
     return jobs
 
 def ashby(slugs, bucket="industry", min_score=3):
@@ -230,8 +265,10 @@ def ashby(slugs, bucket="industry", min_score=3):
             title  = j.get("title","")
             org    = slug.replace("-"," ").title()
             loc    = j.get("locationName","") or (j.get("location") or {}).get("name","") if isinstance(j.get("location"), dict) else j.get("location","")
-            url    = j.get("jobUrl","")
-            posted = fmt_date(j.get("publishedAt",""))
+            url      = j.get("jobUrl","")
+            raw_date = j.get("publishedAt","")
+            if not is_fresh(raw_date): continue
+            posted = fmt_date(raw_date)
             desc   = clean(j.get("descriptionPlain","") or j.get("description",""))
             s = score_job(title, desc, slug)
             if s >= min_score:
@@ -277,7 +314,9 @@ def lever(slugs, bucket="industry"):
             desc  = clean(j.get("descriptionPlain","") or j.get("description",""))
             loc   = j.get("categories",{}).get("location","") if isinstance(j.get("categories"),dict) else ""
             url   = j.get("hostedUrl","")
-            posted = fmt_date(str(j.get("createdAt","")//1000) if j.get("createdAt") else "")
+            raw_ts = str(j.get("createdAt","")//1000) if j.get("createdAt") else ""
+            if not is_fresh(raw_ts): continue
+            posted = fmt_date(raw_ts)
             s = score_job(title, desc, slug)
             if s >= 3:
                 jobs.append(dict(title=title, org=slug.replace("-"," ").title(),
@@ -335,7 +374,9 @@ def linkedin():
                 title    = title_m.group(1).strip() if title_m else ""
                 org      = org_m.group(1).strip()   if org_m   else ""
                 location = loc_m.group(1).strip()   if loc_m   else ""
-                posted   = fmt_date(date_m.group(1)) if date_m else ""
+                raw_date = date_m.group(1) if date_m else ""
+                if not is_fresh(raw_date): continue
+                posted   = fmt_date(raw_date)
 
                 if not title: continue
                 if not is_relevant(f"{title} {org}"): continue
