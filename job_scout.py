@@ -29,6 +29,7 @@ TITLE_GOOD = ["research scientist", "scientist ii", "scientist iii"]
 TITLE_OK   = ["scientist", "researcher"]
 TITLE_BAD  = ["technician", "lab tech", "undergraduate", "phd student",
               "postdoc", "post-doc", "postdoctoral", "post-doctoral",
+              "mechanical engineer", "electrical engineer", "lab operations",
               "vp ", "vice president", "marketing", "administrative", "recruiter"]
 RSS_KEYWORDS = [
     "single cell", "organoid", "stem cell", "ipsc", "genomic",
